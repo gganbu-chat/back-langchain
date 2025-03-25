@@ -136,37 +136,6 @@ class Chat:
             log_file.write(f"[{timestamp}] {sender}: {message}\n")
             log_file.flush()
 
-    def get_current_session_logs(self, session_id: str) -> str:
-        """현재 세션의 대화 내용을 가져옵니다."""
-        log_path = f"{self.logs_path}/{session_id}.log"
-        if os.path.exists(log_path):
-            with open(log_path, "r", encoding="utf-8") as log_file:
-                logs = log_file.readlines()
-                # 실제 대화 내용만 반환 (Session opened/closed 등은 제외)
-                chat_logs = [line for line in logs if 'user:' in line or 'chatbot:' in line]
-                return ''.join(chat_logs)
-        return ""
-
-    def get_all_chat_history(self, session_id: str, room_id: str, db: Session) -> str:
-        """DB에 저장된 이전 대화와 현재 세션의 대화를 모두 가져옵니다."""
-        # DB에서 이전 대화 기록 가져오기
-        logs = db.query(ChatLog).filter(
-            ChatLog.chat_id == room_id
-        ).order_by(ChatLog.end_time.desc()).limit(10).all()
-        
-        chat_history = ""
-        # DB 저장된 이전 대화 기록
-        for log in logs:
-            for line in log.log.split('\n'):
-                if 'user:' in line or 'chatbot:' in line:
-                    chat_history += line + '\n'
-        
-        # 현재 세션의 대화 기록 추가
-        current_session_logs = self.get_current_session_logs(session_id)
-        chat_history += current_session_logs
-        
-        return chat_history
-
     async def send_message(self, websocket: WebSocket, session_id: str, message: dict):
         """
         WebSocket으로 메시지를 전송합니다.
@@ -250,11 +219,6 @@ async def websocket_generate(websocket: WebSocket, room_id: str):
                 data = await websocket.receive_json()
                 request = GenerateRequest(**data)
 
-                with SessionLocal() as db:
-                    chat_history = chat.get_all_chat_history(session_id, room_id, db)
-
-                await chat.log_message(session_id, "user", request.user_message)
-
             except ValueError as e:
                 print(f"Invalid JSON format: {e}")
                 await websocket.close(code=1003, reason="Invalid JSON format")
@@ -281,7 +245,7 @@ async def websocket_generate(websocket: WebSocket, room_id: str):
                     background=request.character_background,
                     speech_style=request.character_speech_style,
                     example_dialogues=request.example_dialogues,
-                    chat_history=chat_history,
+                    chat_history=request.chat_history,
                     room_id=room_id
                 )
 
