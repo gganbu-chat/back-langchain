@@ -3,3 +3,6 @@
 .DS_Store
 __pycache__
 chat_logs
+
+# python 가상환경 파일
+gganbu_lang
